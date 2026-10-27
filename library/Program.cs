@@ -15,7 +15,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 var dataSource = NpgsqlDataSource.Create(connectionString);
 builder.Services.AddSingleton(dataSource);
 
-
+builder.Services.AddScoped<NoteRepository>();
 builder.Services.AddScoped<MemberRepository>();
 // Repositories: one new object per web request.
 builder.Services.AddScoped<BookRepository>();
