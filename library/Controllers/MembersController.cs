@@ -1,8 +1,7 @@
-﻿
+﻿using Npgsql;
 using library.Data;
 using library.Models;
 using Microsoft.AspNetCore.Mvc;
-using Npgsql;
 
 namespace library.Controllers;
 
@@ -32,15 +31,30 @@ public class MembersController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(Member member)
     {
-        if (!ModelState.IsValid)
+        if (!ModelState.IsValid) // 1. a rule on the form was broken
         {
+            // 2. Show the form again, with what was typed.
             return View(member);
         }
-        await _members.AddAsync(member);
+
+        try
+        {
+            // 3. Save the new member.
+            await _members.AddAsync(member);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation) // 4. another member already uses this email
+        {
+            // 5. Put a message under the Email box.
+            ModelState.AddModelError("Email", "Another member already uses this email.");
+            // 6. Show the form again, with what was typed.
+            return View(member);
+        }
+
+        // 7. The member was saved: go back to the list.
         return RedirectToAction(nameof(Index));
     }
 
-    // GET /Members/Edit/5
+    // GET /Members/Edit/5 : the form filled with the current values.
     public async Task<IActionResult> Edit(long id)
     {
         var member = await _members.GetByIdAsync(id);
@@ -51,16 +65,31 @@ public class MembersController : Controller
         return View(member);
     }
 
-    // POST /Members/Edit/5
+    // POST /Members/Edit/5 : the changed form was submitted.
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(Member member)
     {
-        if (!ModelState.IsValid)
+        if (!ModelState.IsValid) // 1. a rule on the form was broken
         {
+            // 2. Show the form again, with what was typed.
             return View(member);
         }
-        await _members.UpdateAsync(member);
+
+        try
+        {
+            // 3. Save the changes.
+            await _members.UpdateAsync(member);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation) // 4. another member already uses this email
+        {
+            // 5. Put a message under the Email box.
+            ModelState.AddModelError("Email", "Another member already uses this email.");
+            // 6. Show the form again, with what was typed.
+            return View(member);
+        }
+
+        // 7. The changes were saved: go back to the list.
         return RedirectToAction(nameof(Index));
     }
 
@@ -85,22 +114,17 @@ public class MembersController : Controller
             // 1. Delete the member.
             await _members.DeleteAsync(id);
         }
-        catch (PostgresException ex) when (
-            ex.SqlState == PostgresErrorCodes.ForeignKeyViolation)
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.ForeignKeyViolation) // 2. the database refused because of a foreign key
         {
             // 3. Load the member again, to show them on the page.
             var member = await _members.GetByIdAsync(id);
-
-            // 4. Check if there is no such member.
-            if (member == null)
+            if (member == null) // 4. there is no such member
             {
                 // 5. Answer "not found".
                 return NotFound();
             }
-
             // 6. Set the message the page will show.
             ViewBag.Error = "This member has loans on record, so the database will not delete them.";
-
             // 7. Show the Delete page again, with the member.
             return View("Delete", member);
         }
