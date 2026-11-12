@@ -17,10 +17,9 @@ builder.Services.AddSingleton(dataSource);
 
 builder.Services.AddScoped<NoteRepository>();
 builder.Services.AddScoped<MemberRepository>();
+builder.Services.AddScoped<LoanRepository>();
 // Repositories: one new object per web request.
 builder.Services.AddScoped<BookRepository>();
-
-
 
 var app = builder.Build();
 
@@ -43,6 +42,5 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}")
     .WithStaticAssets();
-
 
 app.Run();
