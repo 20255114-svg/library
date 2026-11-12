@@ -8,7 +8,21 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="sql\notes.sql" />
+    <None Remove="sql\refresh_loans.sql" />
+    <None Remove="sql\schema.sql" />
+    <None Remove="sql\seed.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Include="sql\notes.sql" />
+    <Page Include="sql\refresh_loans.sql" />
+    <Page Include="sql\schema.sql" />
+    <Page Include="sql\seed.sql" />
   </ItemGroup>
 
 </Project>
