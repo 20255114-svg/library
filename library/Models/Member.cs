@@ -20,5 +20,4 @@ public class Member
 
     public string MemberType { get; set; } = ""; // member_type VARCHAR(10) NOT NULL
     public DateOnly JoinDate { get; set; } // join_date DATE
-
 }
