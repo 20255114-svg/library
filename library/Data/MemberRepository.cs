@@ -13,33 +13,69 @@ public class MemberRepository
         _dataSource = dataSource;
     }
 
-    // Copies the current row into a Member. Positions 0 to 4 match every member SELECT.
-    private static Member ReadMember(NpgsqlDataReader reader)
+    // True when the current SELECT has a column with this name.
+    private static bool HasColumn(NpgsqlDataReader reader, string name)
     {
-        return new Member
+        for (int i = 0; i < reader.FieldCount; i++)
         {
-            MemberId = reader.GetInt64(0),
-            FullName = reader.GetString(1),
-            Email = reader.IsDBNull(2) ? null : reader.GetString(2),
-            JoinDate = reader.GetFieldValue<DateOnly>(3),
-            MemberType = reader.GetString(4)
-        };
+            if (reader.GetName(i) == name)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
-    // READ: every member.
+    // Copies the current row into a Member, finding each column by its name.
+    private static Member ReadMember(NpgsqlDataReader reader)
+    {
+        var member = new Member
+        {
+            MemberId = reader.GetInt64(reader.GetOrdinal("member_id")),
+            FullName = reader.GetString(reader.GetOrdinal("full_name")),
+            Email = reader.IsDBNull(reader.GetOrdinal("email")) ? null : reader.GetString(reader.GetOrdinal("email")),
+            MemberType = reader.GetString(reader.GetOrdinal("member_type"))
+        };
+
+        if (HasColumn(reader, "join_date"))
+        {
+            member.JoinDate = reader.GetFieldValue<DateOnly>(reader.GetOrdinal("join_date"));
+        }
+
+        return member;
+    }
+
+    // READ: every member, with how many books each has out now.
     public async Task<List<Member>> GetAllAsync()
     {
+        // 1. The SQL: every member, joined to their open loans, which are counted.
         const string sql =
-            "SELECT member_id, full_name, email, join_date, member_type " +
-            "FROM lending.member ORDER BY member_id;";
+            "SELECT m.member_id, m.full_name, m.email, m.member_type, COUNT(l.loan_id) " +
+            "FROM lending.member m " +
+            "LEFT JOIN lending.loan l ON l.member_id = m.member_id AND l.returned_on IS NULL " +
+            "GROUP BY m.member_id " +
+            "ORDER BY m.full_name;";
 
+        // 2. An empty list, to fill.
         var members = new List<Member>();
+
+        // 3. A command that will run the SQL.
         await using var command = _dataSource.CreateCommand(sql);
+
+        // 4. Run it, and get a reader for the rows.
         await using var reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+
+        while (await reader.ReadAsync()) // 5. there is another row to read
         {
-            members.Add(ReadMember(reader));
+            // 6. Copy the row into a Member.
+            var member = ReadMember(reader);
+            // 7. Add the count from the fifth column, which only this SELECT has.
+            member.OpenLoans = reader.GetInt64(4);
+            // 8. Add the member to the list.
+            members.Add(member);
         }
+
+        // 9. Give the list back.
         return members;
     }
 

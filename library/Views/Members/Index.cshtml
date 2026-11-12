@@ -23,7 +23,8 @@
             <th>Email</th>
             <th>Joined</th>
             <th>Type</th>
-            <th style="width: 10rem"></th>
+            <th class="text-end">Books out</th>
+            <th style="width: 14rem"></th>
         </tr>
     </thead>
 
@@ -40,7 +41,10 @@
                     <td>
                         <span class="badge text-bg-secondary">@m.MemberType</span>
                     </td>
+                    <td class="text-end">@m.OpenLoans</td>
                     <td class="text-end">
+                        <a asp-action="Details" asp-route-id="@m.MemberId"
+                           class="btn btn-sm btn-outline-primary">Loans</a>
                         <a asp-action="Edit" asp-route-id="@m.MemberId"
                            class="btn btn-sm btn-outline-secondary">Edit</a>
                         <a asp-action="Delete" asp-route-id="@m.MemberId"
@@ -52,7 +56,7 @@
         else
         {
             <tr>
-                <td colspan="6" class="text-center text-muted">
+                <td colspan="7" class="text-center text-muted">
                     No members found.
                 </td>
             </tr>
