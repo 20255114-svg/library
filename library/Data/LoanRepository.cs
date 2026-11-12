@@ -134,4 +134,41 @@ public class LoanRepository
         // 4. Run it.
         await command.ExecuteNonQueryAsync();
     }
+
+    // READ: one member's loans, newest first.
+    public async Task<List<LoanView>> GetByMemberAsync(long memberId)
+    {
+        // 1. The SQL: the same as GetAllAsync, for one member only.
+        const string sql =
+            "SELECT l.loan_id, l.member_id, m.full_name, b.title, l.loaned_on, l.returned_on, l.days_allowed, " +
+            "       CASE WHEN l.returned_on IS NOT NULL THEN 'Returned' " +
+            "            WHEN l.loaned_on + l.days_allowed < CURRENT_DATE THEN 'Overdue' " +
+            "            ELSE 'Out' END " +
+            "FROM lending.loan l " +
+            "JOIN lending.member m ON l.member_id = m.member_id " +
+            "JOIN lending.book b ON l.book_id = b.book_id " +
+            "WHERE l.member_id = @member_id " +
+            "ORDER BY l.loaned_on DESC, l.loan_id DESC;";
+
+        // 2. An empty list, to fill.
+        var loans = new List<LoanView>();
+
+        // 3. A command that will run the SQL.
+        await using var command = _dataSource.CreateCommand(sql);
+
+        // 4. Give the command the member's id.
+        command.Parameters.AddWithValue("member_id", memberId);
+
+        // 5. Run it, and get a reader for the rows.
+        await using var reader = await command.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync()) // 6. there is another row to read
+        {
+            // 7. Turn the row into a LoanView and add it to the list.
+            loans.Add(ReadLoan(reader));
+        }
+
+        // 8. Give the list back.
+        return loans;
+    }
 }

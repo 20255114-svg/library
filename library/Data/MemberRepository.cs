@@ -1,75 +1,100 @@
-﻿using Npgsql;
-using library.Models;
+﻿using library.Models;
+using Npgsql;
 
 namespace library.Data;
 
+// Every SQL statement about members lives in this one class.
 public class MemberRepository
 {
-    private readonly NpgsqlDataSource _db;
+    private readonly NpgsqlDataSource _dataSource;
 
-    public MemberRepository(NpgsqlDataSource db)
+    public MemberRepository(NpgsqlDataSource dataSource)
     {
-        _db = db;
+        _dataSource = dataSource;
     }
 
-    private static Member Read(NpgsqlDataReader r) => new Member
+    // Copies the current row into a Member. Positions 0 to 4 match every member SELECT.
+    private static Member ReadMember(NpgsqlDataReader reader)
     {
-        MemberId = r.GetInt64(0),
-        FullName = r.GetString(1),
-        Email = r.IsDBNull(2) ? null : r.GetString(2),
-        JoinDate = r.GetFieldValue<DateOnly>(3),
-        MemberType = r.GetString(4)
-    };
+        return new Member
+        {
+            MemberId = reader.GetInt64(0),
+            FullName = reader.GetString(1),
+            Email = reader.IsDBNull(2) ? null : reader.GetString(2),
+            JoinDate = reader.GetFieldValue<DateOnly>(3),
+            MemberType = reader.GetString(4)
+        };
+    }
 
+    // READ: every member.
     public async Task<List<Member>> GetAllAsync()
     {
-        var list = new List<Member>();
-        await using var cmd = _db.CreateCommand(
-            "SELECT member_id, full_name, email, join_date, member_type FROM lending.member ORDER BY full_name");
-        await using var reader = await cmd.ExecuteReaderAsync();
+        const string sql =
+            "SELECT member_id, full_name, email, join_date, member_type " +
+            "FROM lending.member ORDER BY member_id;";
+
+        var members = new List<Member>();
+        await using var command = _dataSource.CreateCommand(sql);
+        await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            list.Add(Read(reader));
+            members.Add(ReadMember(reader));
         }
-        return list;
+        return members;
     }
 
+    // READ: one member, or null when there is no such member.
     public async Task<Member?> GetByIdAsync(long id)
     {
-        await using var cmd = _db.CreateCommand(
-            "SELECT member_id, full_name, email, join_date, member_type FROM lending.member WHERE member_id = @id");
-        cmd.Parameters.AddWithValue("id", id);
-        await using var reader = await cmd.ExecuteReaderAsync();
-        return await reader.ReadAsync() ? Read(reader) : null;
+        const string sql =
+            "SELECT member_id, full_name, email, join_date, member_type " +
+            "FROM lending.member WHERE member_id = @id;";
+
+        await using var command = _dataSource.CreateCommand(sql);
+        command.Parameters.AddWithValue("id", id);
+        await using var reader = await command.ExecuteReaderAsync();
+        return await reader.ReadAsync() ? ReadMember(reader) : null;
     }
 
-    public async Task AddAsync(Member m)
+    // CREATE: add a member.
+    public async Task AddAsync(Member member)
     {
-        await using var cmd = _db.CreateCommand(
-            "INSERT INTO lending.member (full_name, email, join_date, member_type) VALUES (@name, @email, @joined, @type)");
-        cmd.Parameters.AddWithValue("name", m.FullName);
-        cmd.Parameters.AddWithValue("email", (object?)m.Email ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("joined", m.JoinDate);
-        cmd.Parameters.AddWithValue("type", m.MemberType);
-        await cmd.ExecuteNonQueryAsync();
+        const string sql =
+            "INSERT INTO lending.member (full_name, email, join_date, member_type) " +
+            "VALUES (@full_name, @email, @join_date, @member_type);";
+
+        await using var command = _dataSource.CreateCommand(sql);
+        command.Parameters.AddWithValue("full_name", member.FullName);
+        command.Parameters.AddWithValue("email", (object?)member.Email ?? DBNull.Value);
+        command.Parameters.AddWithValue("join_date", member.JoinDate);
+        command.Parameters.AddWithValue("member_type", member.MemberType);
+        await command.ExecuteNonQueryAsync();
     }
 
-    public async Task UpdateAsync(Member m)
+    // UPDATE: change a member.
+    public async Task UpdateAsync(Member member)
     {
-        await using var cmd = _db.CreateCommand(
-            "UPDATE lending.member SET full_name = @name, email = @email, join_date = @joined, member_type = @type WHERE member_id = @id");
-        cmd.Parameters.AddWithValue("id", m.MemberId);
-        cmd.Parameters.AddWithValue("name", m.FullName);
-        cmd.Parameters.AddWithValue("email", (object?)m.Email ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("joined", m.JoinDate);
-        cmd.Parameters.AddWithValue("type", m.MemberType);
-        await cmd.ExecuteNonQueryAsync();
+        const string sql =
+            "UPDATE lending.member " +
+            "SET full_name = @full_name, email = @email, join_date = @join_date, member_type = @member_type " +
+            "WHERE member_id = @id;";
+
+        await using var command = _dataSource.CreateCommand(sql);
+        command.Parameters.AddWithValue("id", member.MemberId);
+        command.Parameters.AddWithValue("full_name", member.FullName);
+        command.Parameters.AddWithValue("email", (object?)member.Email ?? DBNull.Value);
+        command.Parameters.AddWithValue("join_date", member.JoinDate);
+        command.Parameters.AddWithValue("member_type", member.MemberType);
+        await command.ExecuteNonQueryAsync();
     }
 
+    // DELETE: remove a member. A member with loans is refused by the foreign key.
     public async Task DeleteAsync(long id)
     {
-        await using var cmd = _db.CreateCommand("DELETE FROM lending.member WHERE member_id = @id");
-        cmd.Parameters.AddWithValue("id", id);
-        await cmd.ExecuteNonQueryAsync();
+        const string sql = "DELETE FROM lending.member WHERE member_id = @id;";
+
+        await using var command = _dataSource.CreateCommand(sql);
+        command.Parameters.AddWithValue("id", id);
+        await command.ExecuteNonQueryAsync();
     }
 }
